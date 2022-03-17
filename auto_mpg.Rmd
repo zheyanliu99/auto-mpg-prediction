@@ -199,11 +199,39 @@ If we set the threshold to be 0.5, The confusion matrix is telling that
 * NPV = 0.8596, 0.8596 of the predicted low are actually low
 
 
+# Question (c)
+
+Train a multivariate adaptive regression spline (MARS) model using the training data. The best tune is when nprune is 9 and degree is 2
+
+```{r, warning=FALSE}
+set.seed(7)
+library(vip)
+ctrl <- trainControl(method = "repeatedcv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+model.mars <- train(x = df[rowTrain,1:7],
+                    y = df$mpg_cat[rowTrain],
+                    method = "earth",
+                    tuneGrid = expand.grid(degree = 1:4, 
+                                           nprune = 2:16),
+                    metric = "ROC",
+                    trControl = ctrl)
+
+#  Best Tune
+plot(model.mars)
+model.mars$bestTune %>%  knitr::kable()
 
 
+coef(model.mars$finalModel) 
+
+# pdp::partial(model.mars, pred.var = c("year"), grid.resolution = 200) %>% autoplot()
+
+vip(model.mars$finalModel)
+
+```
 
 
-
+Important variables are cylinders 4, year, horsepower, displacement, acceleration and weight.
 
 
 
