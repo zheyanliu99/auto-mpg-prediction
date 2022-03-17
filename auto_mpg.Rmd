@@ -257,3 +257,79 @@ qda.pred <- predict(qda.fit, newdata = df[-rowTrain,])
 head(qda.pred$posterior)
 ```
 
+# Question (e)
+
+Which model will you use to predict the response variable? Plot its ROC curve using the test data. Report the AUC and the misclassification error rate.
+
+## ROC and AUC
+
+```{r}
+glm.pred <- predict(glm.fit, newdata = df[-rowTrain,], type = "response")
+mars.pred <- predict(model.mars, newdata = df[-rowTrain,], type = "prob")[,2]
+lda.pred <- predict(lda.fit, newdata = df[-rowTrain,])$posterior[,2]
+qda.pred <- predict(qda.fit, newdata = df[-rowTrain,])$posterior[,2]
+
+roc.glm <- roc(df$mpg_cat[-rowTrain], glm.pred)
+roc.mars <- roc(df$mpg_cat[-rowTrain], mars.pred)
+roc.lda <- roc(df$mpg_cat[-rowTrain], lda.pred)
+roc.qda <- roc(df$mpg_cat[-rowTrain], qda.pred)
+
+auc <- c(roc.glm$auc[1], roc.gam$auc[1], 
+         roc.lda$auc[1], roc.qda$auc[1])
+
+modelNames <- c("glm","gam","lda","qda")
+
+ggroc(list(roc.glm, roc.gam, roc.lda, roc.qda), legacy.axes = TRUE) + 
+  scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
+                       name = "Models (AUC)") +
+  geom_abline(intercept = 0, slope = 1, color = "grey")
+
+```
+
+I will prefer LDA model to predict the response variable because it has the highest AUC.
+
+
+## Misclassification error rate
+
+We choose the shreshold for specific task, i.e if we want to identify more high mpg cars, we will choose a threshold smaller than 0.5. Therefore I calculated the misclassification error rate for threshold 0.4, 0.5 and 0.6
+
+```{r}
+cal_error = function(model_name, pred_prob, threshold){
+  pred.label <- rep("low", length(pred_prob))
+  pred.label[pred_prob>threshold] <- "high"
+  confusion_m = 
+       table(
+       tibble(pred = pred.label,
+              reference = df$mpg_cat[-rowTrain]))
+  error = (confusion_m['high','low'] + confusion_m['low','high'])/length(pred_prob)
+  print(paste('With threshold', threshold, ',', model_name, 'model has misclassification error rate', round(error, 3)))
+}
+```
+
+When shreshold is 0.4, we should choose Logistic Regression model or GAM
+
+```{r}
+cal_error('Logistic Regression', glm.pred, 0.4)
+cal_error('MARS', mars.pred, 0.4)
+cal_error('LDA', lda.pred, 0.4)
+cal_error('QDA', qda.pred, 0.4)
+```
+
+When shreshold is 0.5, we should choose Logistic Regression model or GAM or LDA 
+
+```{r}
+cal_error('Logistic Regression', glm.pred, 0.5)
+cal_error('MARS', mars.pred, 0.5)
+cal_error('LDA', lda.pred, 0.5)
+cal_error('QDA', qda.pred, 0.5)
+```
+
+When shreshold is 0.6, we should choose MARS
+
+```{r}
+cal_error('Logistic Regression', glm.pred, 0.6)
+cal_error('MARS', mars.pred, 0.6)
+cal_error('LDA', lda.pred, 0.6)
+cal_error('QDA', qda.pred, 0.6)
+```
+
