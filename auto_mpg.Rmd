@@ -1,0 +1,210 @@
+---
+title: "Assignment 3"
+author: "Zheyan Liu"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '2'
+--- 
+
+```{r, include=FALSE}
+library(tidyverse)
+library(caret)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .7,
+  out.width = "95%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = 'bottom'))
+
+options(
+  ggplot2.continuous.colour = 'viridis',
+  ggplot2.continuous.fill = 'viridis'
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+# Introduction
+
+In this problem, you will develop a model to predict whether a given car gets high or
+low gas mileage based on the dataset “auto.csv”. The dataset contains 392 observations.
+The response variable is mpg cat, which indicates whether the miles per gallon of a car is
+high or low. The predictors are:
+
+* cylinders: Number of cylinders between 4 and 8
+* displacement: Engine displacement (cu. inches)
+* horsepower: Engine horsepower
+* weight: Vehicle weight (lbs.)
+* acceleration: Time to accelerate from 0 to 60 mph (sec.)
+* year: Model year (modulo 100)
+* origin: Origin of car (1. American, 2. European, 3. Japanese)
+
+Split the dataset into two parts: training data (70%) and test data (30%).
+
+```{r}
+# read data
+df = 
+  read_csv('data/auto.csv', show_col_types = FALSE) %>% 
+  janitor::clean_names() %>% 
+  mutate(cylinders = as.factor(cylinders),
+         origin = as.character(origin),
+         origin = 
+           case_when(origin == '1' ~ 'American',
+                     origin == '2' ~ 'European',
+                     origin == '3' ~ 'Japanese'),
+         origin = as.factor(origin),
+         # target
+         mpg_cat = as.factor(mpg_cat),
+         mpg_cat = fct_relevel(mpg_cat, 'low'))
+
+# split data
+rowTrain <- createDataPartition(y = df$mpg_cat,
+                                p = 0.7,
+                                list = FALSE)
+```
+
+# Question (a)
+
+Produce some graphical or numerical summaries of the data.
+
+The model has `r nrow(df)` observations and `r ncol(df)-1` independent variables including 2 categorical variables (cylinders, origin) and 5 continuous variables(displacement, horsepower, weight, acceleration, year).
+
+## Target variable mpg_cat
+
+Category high and low are balanced
+
+```{r}
+df %>% 
+  group_by(mpg_cat) %>% 
+  summarise(cnt = n()) %>% 
+  knitr::kable()
+```
+
+
+## mpg_cat and categorical variables
+
+Cars with low mpg mostly has 6 or 8 cylinders while those with high mpg has 4 cylinders.
+
+
+```{r}
+df %>% group_by(cylinders, mpg_cat) %>% 
+  summarise(cnt = n()) %>% 
+ggplot(aes(x = cylinders, y = cnt, fill = mpg_cat, label = cnt)) + 
+  geom_bar(stat = "identity", position = "dodge")  +
+  geom_text(
+    aes(label = cnt),
+    colour = "black", size = 3.2,
+    vjust = -0.6, position = position_dodge(.9)
+  ) +  ylim(0, 200)
+```
+
+Cars orgrinates in American are more likely to have low mpg (2.4 times more likely), while cars from European and Japanese are more likely to have high mpg.
+
+```{r}
+
+df %>% group_by(origin, mpg_cat) %>% 
+  summarise(cnt = n()) %>% 
+ggplot(aes(x = origin, y = cnt, fill = mpg_cat, label = cnt)) + 
+  geom_bar(stat = "identity", position = "dodge")  +
+  geom_text(
+    aes(label = cnt),
+    colour = "black", size = 3.2,
+    vjust = -0.6, position = position_dodge(.9)
+  ) +  ylim(0, 200)
+
+```
+
+
+## mpg_cat and continuous variables
+
+From the boxplot and feature plot, the median of displacement, horsepower, weight of the high mpg cars is lower than that of the high mpg cars, while the median of acceleration, year of the high mpg cars is higher than that of the high mpg cars
+
+
+```{r}
+library(patchwork)
+p1 = ggplot(df, aes(x=mpg_cat, y=displacement, fill = mpg_cat)) + 
+  geom_boxplot() + theme(legend.position = "none")
+p2 = ggplot(df, aes(x=mpg_cat, y=horsepower, fill = mpg_cat)) + 
+  geom_boxplot() + theme(legend.position = "none") 
+p3 = ggplot(df, aes(x=mpg_cat, y=weight, fill = mpg_cat)) + 
+  geom_boxplot() + theme(legend.position = "none") 
+p4 = ggplot(df, aes(x=mpg_cat, y=acceleration, fill = mpg_cat)) + 
+  geom_boxplot() + theme(legend.position = "none") 
+p5 = ggplot(df, aes(x=mpg_cat, y=year, fill = mpg_cat)) + 
+  geom_boxplot() + theme(legend.position = "none") 
+
+(p1 + p2)/(p3 + p4 + p5)
+```
+
+```{r}
+featurePlot(x = df  %>% select(displacement, horsepower, weight, acceleration, year), 
+            y = df$mpg_cat,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 2))
+```
+
+# Question (b)
+
+Perform a logistic regression using the training data. Do any of the predictors appear
+to be statistically significant? If so, which ones? Compute the confusion matrix and
+overall fraction of correct predictions using the test data. Briefly explain what the
+confusion matrix is telling you.
+
+## Build logistic regression model and get significant predictors
+
+```{r}
+glm.fit <- glm(mpg_cat ~ ., 
+               data = df, 
+               subset = rowTrain, 
+               family = binomial(link = "logit"))
+
+summary(glm.fit)
+```
+
+Under 0.05 significance level, The significant predictors are cylinders 4 (reference category is cylinders 2), weight and year.
+
+
+## Confusion matrix and fraction of correct predictions
+
+Confusion matrix
+
+```{r, warning=FALSE}
+test.pred.prob <- predict(glm.fit, newdata = df[-rowTrain,],
+                           type = "response")
+test.pred <- rep("low", length(test.pred.prob))
+test.pred[test.pred.prob>0.5] <- "high"
+
+confusionMatrix(data = as.factor(test.pred),
+                reference = df$mpg_cat[-rowTrain],
+                positive = "high")
+```
+
+Fraction of correct predictions is `r (49+50)/(49+50+8+9)`.
+
+If we set the threshold to be 0.5, The confusion matrix is telling that
+
+* Sensitivity = 0.8621, 0.8621 of the high mpg cars are detected by the model
+* Specificity = 0.8448, 0.8448 of the low mpg cars are detected by the model
+* PPV = 0.8475, 0.8475 of the predicted high are actually high
+* NPV = 0.8596, 0.8596 of the predicted low are actually low
+
+
+
+
+
+
+
+
+
+
+
