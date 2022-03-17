@@ -66,6 +66,7 @@ df =
          mpg_cat = fct_relevel(mpg_cat, 'low'))
 
 # split data
+set.seed(77)
 rowTrain <- createDataPartition(y = df$mpg_cat,
                                 p = 0.7,
                                 list = FALSE)
@@ -163,6 +164,7 @@ confusion matrix is telling you.
 ## Build logistic regression model and get significant predictors
 
 ```{r}
+set.seed(77)
 glm.fit <- glm(mpg_cat ~ ., 
                data = df, 
                subset = rowTrain, 
@@ -171,7 +173,7 @@ glm.fit <- glm(mpg_cat ~ .,
 summary(glm.fit)
 ```
 
-Under 0.05 significance level, The significant predictors are cylinders 4 (reference category is cylinders 2), weight and year.
+Under 0.05 significance level, The significant predictors are horsepower, weight, year.
 
 
 ## Confusion matrix and fraction of correct predictions
@@ -204,11 +206,12 @@ If we set the threshold to be 0.5, The confusion matrix is telling that
 Train a multivariate adaptive regression spline (MARS) model using the training data. The best tune is when nprune is 9 and degree is 2
 
 ```{r, warning=FALSE}
-set.seed(7)
+set.seed(77)
 library(vip)
 ctrl <- trainControl(method = "repeatedcv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE)
+set.seed(77)
 model.mars <- train(x = df[rowTrain,1:7],
                     y = df$mpg_cat[rowTrain],
                     method = "earth",
@@ -249,9 +252,13 @@ head(lda.pred$posterior)
 
 ## Build QDA model
 
+To avoid rank deficiency, select only the significant variables in Logistic Regression under 0.05 significance level
+
 ```{r}
-qda.fit <- qda(mpg_cat~., data = df,
+library(MASS)
+qda.fit <- qda(mpg_cat~horsepower + weight + year, data = df,
                subset = rowTrain)
+
 
 qda.pred <- predict(qda.fit, newdata = df[-rowTrain,])
 head(qda.pred$posterior)
@@ -264,6 +271,7 @@ Which model will you use to predict the response variable? Plot its ROC curve us
 ## ROC and AUC
 
 ```{r}
+library(pROC)
 glm.pred <- predict(glm.fit, newdata = df[-rowTrain,], type = "response")
 mars.pred <- predict(model.mars, newdata = df[-rowTrain,], type = "prob")[,2]
 lda.pred <- predict(lda.fit, newdata = df[-rowTrain,])$posterior[,2]
@@ -274,12 +282,12 @@ roc.mars <- roc(df$mpg_cat[-rowTrain], mars.pred)
 roc.lda <- roc(df$mpg_cat[-rowTrain], lda.pred)
 roc.qda <- roc(df$mpg_cat[-rowTrain], qda.pred)
 
-auc <- c(roc.glm$auc[1], roc.gam$auc[1], 
+auc <- c(roc.glm$auc[1], roc.mars$auc[1], 
          roc.lda$auc[1], roc.qda$auc[1])
 
 modelNames <- c("glm","gam","lda","qda")
 
-ggroc(list(roc.glm, roc.gam, roc.lda, roc.qda), legacy.axes = TRUE) + 
+ggroc(list(roc.glm, roc.mars, roc.lda, roc.qda), legacy.axes = TRUE) + 
   scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
                        name = "Models (AUC)") +
   geom_abline(intercept = 0, slope = 1, color = "grey")
@@ -306,27 +314,27 @@ cal_error = function(model_name, pred_prob, threshold){
 }
 ```
 
-When shreshold is 0.4, we should choose Logistic Regression model or GAM
+When shreshold is 0.4, we should choose LDA or GAM
 
-```{r}
+```{r, echo=FALSE}
 cal_error('Logistic Regression', glm.pred, 0.4)
 cal_error('MARS', mars.pred, 0.4)
 cal_error('LDA', lda.pred, 0.4)
 cal_error('QDA', qda.pred, 0.4)
 ```
 
-When shreshold is 0.5, we should choose Logistic Regression model or GAM or LDA 
+When shreshold is 0.5, we should choose MARS
 
-```{r}
+```{r, echo=FALSE}
 cal_error('Logistic Regression', glm.pred, 0.5)
 cal_error('MARS', mars.pred, 0.5)
 cal_error('LDA', lda.pred, 0.5)
 cal_error('QDA', qda.pred, 0.5)
 ```
 
-When shreshold is 0.6, we should choose MARS
+When shreshold is 0.6, we should choose MARS or LDA
 
-```{r}
+```{r, echo=FALSE}
 cal_error('Logistic Regression', glm.pred, 0.6)
 cal_error('MARS', mars.pred, 0.6)
 cal_error('LDA', lda.pred, 0.6)
