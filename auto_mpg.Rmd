@@ -233,6 +233,27 @@ vip(model.mars$finalModel)
 
 Important variables are cylinders 4, year, horsepower, displacement, acceleration and weight.
 
+# Question (D)
+
+## Build LDA model
+
+```{r}
+library(MASS)
+lda.fit <- lda(mpg_cat~., data = df,
+               subset = rowTrain)
+
+lda.pred <- predict(lda.fit, newdata = df[-rowTrain,])
+head(lda.pred$posterior)
+```
 
 
+## Build QDA model
+
+```{r}
+qda.fit <- qda(mpg_cat~., data = df,
+               subset = rowTrain)
+
+qda.pred <- predict(qda.fit, newdata = df[-rowTrain,])
+head(qda.pred$posterior)
+```
 
