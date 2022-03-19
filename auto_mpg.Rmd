@@ -240,13 +240,25 @@ Important variables are cylinders 4, year, horsepower, displacement, acceleratio
 
 ## Build LDA model
 
-```{r}
+```{r, warning=FALSE}
 library(MASS)
 lda.fit <- lda(mpg_cat~., data = df,
                subset = rowTrain)
 
 lda.pred <- predict(lda.fit, newdata = df[-rowTrain,])
 head(lda.pred$posterior)
+```
+LDA scaling matrix
+
+```{r}
+lda.fit$scaling
+```
+
+
+LDA linear discriminants
+
+```{r}
+plot(lda.fit, col = as.numeric(df$mpg_cat), abbrev = TRUE)
 ```
 
 
@@ -285,7 +297,7 @@ roc.qda <- roc(df$mpg_cat[-rowTrain], qda.pred)
 auc <- c(roc.glm$auc[1], roc.mars$auc[1], 
          roc.lda$auc[1], roc.qda$auc[1])
 
-modelNames <- c("glm","gam","lda","qda")
+modelNames <- c("glm","mars","lda","qda")
 
 ggroc(list(roc.glm, roc.mars, roc.lda, roc.qda), legacy.axes = TRUE) + 
   scale_color_discrete(labels = paste0(modelNames, " (", round(auc,3),")"),
@@ -294,7 +306,100 @@ ggroc(list(roc.glm, roc.mars, roc.lda, roc.qda), legacy.axes = TRUE) +
 
 ```
 
-I will prefer LDA model to predict the response variable because it has the highest AUC.
+I will prefer LDA or mars model to predict the response variable because it has the highest AUC.
+
+## AUC with cross validation
+
+Conduct cross validation and record each round of AUC, the result of MARS and LDA is better for higher median AUC.
+
+```{r Try using modelr but failed, include=FALSE}
+# library(modelr)
+# cv_df =
+#   crossv_mc(df, 100, test = 0.3)
+# 
+# ctrl <- trainControl(method = "repeatedcv",
+#                      summaryFunction = twoClassSummary,
+#                      classProbs = TRUE)
+# cv_df =
+#   cv_df %>%
+#   mutate(
+#     glm.fit = map(train, ~glm(mpg_cat ~ .,data = .x, family = binomial(link = "logit"))),
+#     mars.fit = map(train, ~caret::train(mpg_cat ~ ., data = .x, method = "earth")))
+
+
+```
+
+```{r, warning=FALSE}
+# cross validation with caret
+# refit glm and lda with caret functions
+
+glm.model = 
+  train(mpg_cat ~.,
+        data = df,
+        method = "glm",
+        metric = "ROC",
+        trControl = ctrl)
+
+lda.model = 
+  train(mpg_cat ~ .,
+        data = df,
+        method = "lda",
+        metric = "ROC",
+        trControl = ctrl)
+
+res = 
+  resamples(list(Logistic_Regression = glm.model,
+                 MARS = model.mars,
+                 LDA = lda.model),
+            times = 100)
+
+summary(res)
+
+```
+```{r}
+bwplot(res, metric = "ROC")
+```
+
+```{r, include=FALSE}
+# set.seed(7)
+# tmp <- createDataPartition(y = df$mpg_cat,
+#                            p = .7,
+#                            times = 20)
+# 
+# glm.models = 
+#   train(mpg_cat ~.,
+#         data = df,
+#         method = "glm",
+#         metric = "ROC",
+#         trControl = trainControl(
+#                     method = "LGOCV", classProbs = TRUE, index = tmp))
+# 
+# mars.models <- 
+#   train(mpg_cat ~ .,
+#         data = df,
+#         method = "earth",
+#         tuneGrid = expand.grid(degree = 1:4, 
+#                                nprune = 2:16),
+#         metric = "ROC",
+#         trControl = trainControl(
+#                     method = "LGOCV", classProbs = TRUE, index = tmp))
+# 
+# lda.models = 
+#   train(mpg_cat ~ .,
+#         data = df,
+#         method = "lda",
+#         metric = "ROC",
+#         trControl = trainControl(
+#                     method = "LGOCV", classProbs = TRUE, index = tmp))
+
+## or load pre-calculated results using:
+## load(url("http://caret.r-forge.r-project.org/exampleModels.RData"))
+
+## resamps <- resamples(list(CART = rpartFit,
+##                           CondInfTree = ctreeFit,
+##                           MARS = earthFit))
+
+```
 
 
 ## Misclassification error rate
