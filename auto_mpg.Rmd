@@ -250,7 +250,7 @@ head(lda.pred$posterior)
 ```
 
 
-## Build QDA model
+## Build QDA model(Not required)
 
 To avoid rank deficiency, select only the significant variables in Logistic Regression under 0.05 significance level
 
