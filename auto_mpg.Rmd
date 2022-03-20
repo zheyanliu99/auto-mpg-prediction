@@ -282,7 +282,7 @@ Which model will you use to predict the response variable? Plot its ROC curve us
 
 ## ROC and AUC
 
-```{r}
+```{r, message=FALSE}
 library(pROC)
 glm.pred <- predict(glm.fit, newdata = df[-rowTrain,], type = "response")
 mars.pred <- predict(model.mars, newdata = df[-rowTrain,], type = "prob")[,2]
